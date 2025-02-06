@@ -43,8 +43,8 @@ async def start(update: Update, context: CallbackContext) -> None:
     json_filename = str(os.getenv("JSONEXAMPLE"))  # Path to your pre-existing JSON file
     await context.bot.send_document(
         chat_id, 
-        document=open(json_filename, "rb"),
-        caption="Here is your JSON template for creating your user while we make the app\nFill it and resend it to this chat."
+        document = open(json_filename, "rb"),
+        caption = "Here is your JSON template for creating your user while we make the app\nFill it and resend it to this chat."
     )
 
 async def handle_document(update: Update, context: CallbackContext) -> None:
@@ -70,7 +70,7 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
         await file.download_to_drive(str(os.getenv("JSONDOWNLOAD")))
         # Load JSON and validate
         try:
-            with open(str(os.getenv("JSONDOWNLOAD")), "r", encoding="utf-8") as f:
+            with open(str(os.getenv("JSONDOWNLOAD")), "r", encoding = "utf-8") as f:
                 data = json.load(f)
             
             if not isinstance(data, dict):
@@ -86,11 +86,18 @@ async def handle_document(update: Update, context: CallbackContext) -> None:
         # Now pass the correct parameters to create_bot using the unpacked bot_data dict
         bot_id = create_bot(**bot_data)
         # Create user with chat_id and bot_id (update as needed for your update_data)
-        create_user(chat_id=update.message.chat_id, bot_id=bot_id)
+        create_user(chat_id = update.message.chat_id, bot_id = bot_id)
         await update.message.reply_text(f"Bot and user created successfully with Bot ID: {bot_id}")
     else:
         await update.message.reply_text("Please send a valid JSON file.")
 
 
 async def handle_message(update, context):
+    # recive message
+    message = update.message.text
+    #send messaje
+    answer = chat_answer(messages) 
+    update.message.reply_text(answer)
+    context.bot.send_audio(chat_id = update.effective_chat.id, audio=open('output.mp3', 'rb'))
+
     pass

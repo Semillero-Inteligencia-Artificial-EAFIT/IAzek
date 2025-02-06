@@ -1,5 +1,7 @@
 from deep_translator import GoogleTranslator 
 import speech_recognition as sr
+from openai import OpenAI
+
 
 def Web_Translate(txt,writeIn,translateTo):
     """
@@ -39,3 +41,13 @@ def Transcribe_and_Translate(audio_file: str,language="ru": str):
         return None, "Sorry, I could not understand the audio."
     except sr.RequestError as e:
         return None, f"Error: {e}"
+
+def chat_answer(messages):
+    client = OpenAI(base_url="http://localhost:1234/v1", api_key="lm-studio")
+    completion = client.chat.completions.create(
+      model="TheBloke/dolphin-2.2.1-mistral-7B-GGUF",
+      messages=messages,
+      temperature=1.1,
+      max_tokens=140 ,
+    )
+    return completion.choices[0].message.content
