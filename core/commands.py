@@ -1,82 +1,96 @@
-from telegram import Update,InlineKeyboardButton, InlineKeyboardMarkup
+#!/usr/bin/env python 
+# -*- coding: utf-8 -*-"
+"""
+IAzek - 2024 - por MLEAFIT
+IAzek - 2024 - by MLEAFIT
+"""
+
+from telegram import Update, InputFile
 from telegram.ext import Updater, CommandHandler, MessageHandler, filters, CallbackContext,CallbackQueryHandler
+from telegram import Update, InputFile
+
+import json
+import logging
+
 from core.tools.data_base import create_user,create_bot,update_user
 from core.tools.tools import format_languages_str,enumerate_languages_dict
 from dotenv import load_dotenv
 import os
 
+logging.basicConfig(level=logging.INFO)
 load_dotenv()
+
 languages_options = os.getenv("LANGUAGES")
 var_enumerate_languages_dict = enumerate_languages_dict(languages_options)
 var_format_languages_str = format_languages_str(enumerate_languages_dict(languages_options))
 
-def start(update: Update, context: CallbackContext) -> None:
+async def start(update: Update, context: CallbackContext) -> None:
     """
-    Starts a simple text-based conversation with the user.
-    """
+    Send a JSON template file to the user when the bot starts.
 
-    #languages_options=os.getenv("LANGUAGES")
-    update.message.reply_text(
-        "Hello welcome to IAzek"
-        "What language do you want to learn?\n"+var_format_languages_str+"\n"
-        "Please type the number of your choice (e.g., 1, 2, or 3)."
+    This function is triggered by the "/start" command. It retrieves the JSON template file
+    path from the environment variable "JSONEXAMPLE" and sends it to the user's chat as a document.
+    The message includes a caption instructing the user to fill out the template and resend it.
+
+    Args:
+        update (Update): The incoming update containing message data.
+        context (CallbackContext): The context provided by the dispatcher, including the bot instance.
+
+    Returns:
+        None
+    """
+    chat_id = update.effective_chat.id
+    json_filename = str(os.getenv("JSONEXAMPLE"))  # Path to your pre-existing JSON file
+    await context.bot.send_document(
+        chat_id, 
+        document=open(json_filename, "rb"),
+        caption="Here is your JSON template for creating your user while we make the app\nFill it and resend it to this chat."
     )
-    create_user(update.message.chat_id, bot_id=None, language=None, level=-1, weaknesses=None, strengths=None)
-    context.user_data["state"] = "language_choice"  # Set the conversation state
 
-
-# Step 2: Handle user responses
-def handle_message(update: Update, context: CallbackContext) -> None:
+async def handle_document(update: Update, context: CallbackContext) -> None:
     """
-    Handles the user's responses based on the current conversation state.
+    Process a JSON document sent by the user and create a bot and user based on its contents.
+
+    This function handles incoming documents. If the document's MIME type is "application/json",
+    it downloads the file, validates and loads the JSON data, and extracts the "bot_data" section.
+    The extracted data is used to create a bot via the `create_bot` function. It then creates a user
+    with the returned bot_id by calling `create_user`. If the JSON is invalid, a fallback example JSON is used.
+    If the document is not a JSON file, the function sends a message instructing the user to send a valid JSON file.
+
+    Args:
+        update (Update): The incoming update containing the document.
+        context (CallbackContext): The context provided by the dispatcher, including the bot instance.
+
+    Returns:
+        None
     """
-    user_message = update.message.text.strip()
-    state = context.user_data.get("state")
-
-    if state == "language_choice":
-        # Handle the language choice
-        languages = {"1": "English", "2": "Spanish", "3": "German"}
-        chosen_language = languages.get(user_message)
-
-        if chosen_language:
-            context.user_data["language"] = chosen_language
-            update.message.reply_text(
-                f"Okay, you chose {chosen_language}. Do you want to personalize your bot?\n"
-                "Type '1) yes' or '2) no'."
-            )
-            context.user_data["state"] = "personalize_bot"
-        else:
-            update.message.reply_text("Invalid choice. Please type 1, 2, or 3.")
-
-    elif state == "personalize_bot":
-        # Handle the bot personalization question
-        if user_message.lower() == "yes":
-            update.message.reply_text(
-                "Great! What gender should your bot be?\n"
-                "Type 'male' or 'female'."
-            )
-            context.user_data["state"] = "bot_gender"
-        elif user_message.lower() == "no":
-            update.message.reply_text("Got it! Your bot is ready to use. Have fun!")
-            context.user_data.clear()  # End the conversation
-        else:
-            update.message.reply_text("Please type 'yes' or 'no'.")
-
-    elif state == "bot_gender":
-        # Handle the gender choice
-        if user_message.lower() in ["male", "female"]:
-            context.user_data["gender"] = user_message.lower()
-            update.message.reply_text(
-                f"Awesome! Your bot is {user_message.lower()}. Let's start chatting!"
-            )
-            context.user_data.clear()  # End the conversation
-        else:
-            update.message.reply_text("Please type 'male' or 'female'.")
-
+    document = update.message.document
+    if document.mime_type == "application/json":
+        file = await document.get_file()
+        await file.download_to_drive(str(os.getenv("JSONDOWNLOAD")))
+        # Load JSON and validate
+        try:
+            with open(str(os.getenv("JSONDOWNLOAD")), "r", encoding="utf-8") as f:
+                data = json.load(f)
+            
+            if not isinstance(data, dict):
+                raise ValueError("Invalid JSON structure")
+        except (json.JSONDecodeError, ValueError):
+            # Fallback: read the JSON data from the file specified in the environment variable "JSONEXAMPLE"
+            fallback_path = str(os.getenv("JSONEXAMPLE"))
+            with open(fallback_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        print(data)
+        # Extract bot data from JSON
+        bot_data = data.get("bot_data", {})
+        # Now pass the correct parameters to create_bot using the unpacked bot_data dict
+        bot_id = create_bot(**bot_data)
+        # Create user with chat_id and bot_id (update as needed for your update_data)
+        create_user(chat_id=update.message.chat_id, bot_id=bot_id)
+        await update.message.reply_text(f"Bot and user created successfully with Bot ID: {bot_id}")
     else:
-        # If no state is set, restart the conversation
-        update.message.reply_text("Type /start to begin.")
-    update_user(chat_id, bot_id=None, language=None, level=None, weaknesses=None, strengths=None, modes=None, current_mode=None, sentiments=None)
+        await update.message.reply_text("Please send a valid JSON file.")
 
-def echo(update, context):
+
+async def handle_message(update, context):
     pass
